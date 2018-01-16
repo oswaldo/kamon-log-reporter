@@ -25,16 +25,16 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import net.logstash.logback.argument.StructuredArguments._
 
-object LogReporter extends ExtensionId[LogReporterExtension] with ExtensionIdProvider {
-  override def lookup(): ExtensionId[_ <: Extension] = LogReporter
-  override def createExtension(system: ExtendedActorSystem): LogReporterExtension = new LogReporterExtension(system)
+object LogbackReporter extends ExtensionId[LogbackReporterExtension] with ExtensionIdProvider {
+  override def lookup(): ExtensionId[_ <: Extension] = LogbackReporter
+  override def createExtension(system: ExtendedActorSystem): LogbackReporterExtension = new LogbackReporterExtension(system)
 }
 
-class LogReporterExtension(system: ExtendedActorSystem) extends Kamon.Extension {
+class LogbackReporterExtension(system: ExtendedActorSystem) extends Kamon.Extension {
   val log = LoggerFactory.getLogger(getClass.getName)
-  log.info("Starting the Kamon(LogReporter) extension")
+  log.info("Starting the Kamon(LogbackReporter) extension")
 
-  val subscriber = system.actorOf(Props[LogReporterSubscriber], "kamon-logback-reporter")
+  val subscriber = system.actorOf(Props[LogbackReporterSubscriber], "kamon-logback-reporter")
 
   Kamon.metrics.subscribe("trace", "**", subscriber, permanently = true)
   Kamon.metrics.subscribe("akka-actor", "**", subscriber, permanently = true)
@@ -50,9 +50,9 @@ class LogReporterExtension(system: ExtendedActorSystem) extends Kamon.Extension 
   Kamon.metrics.subscribe("jdbc-statement", "**", subscriber, permanently = true)
 }
 
-class LogReporterSubscriber extends Actor with ActorLogging {
+class LogbackReporterSubscriber extends Actor with ActorLogging {
 
-  import kamon.logreporter.LogReporterSubscriber.RichHistogramSnapshot
+  import kamon.logreporter.LogbackReporterSubscriber.RichHistogramSnapshot
 
   def receive = {
     case tick: TickMetricSnapshot ⇒ printMetricSnapshot(tick)
@@ -577,7 +577,7 @@ class LogReporterSubscriber extends Actor with ActorLogging {
   }
 }
 
-object LogReporterSubscriber {
+object LogbackReporterSubscriber {
 
   implicit class RichHistogramSnapshot(histogram: Histogram.Snapshot) {
     def average: Double = {
