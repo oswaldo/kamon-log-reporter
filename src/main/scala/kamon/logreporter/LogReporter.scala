@@ -17,11 +17,13 @@
 package kamon.logreporter
 
 import akka.actor._
-import akka.event.Logging
 import kamon.Kamon
 import kamon.metric.SubscriptionsDispatcher.TickMetricSnapshot
 import kamon.metric._
 import kamon.metric.instrument.{ Counter, Histogram }
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import net.logstash.logback.argument.StructuredArguments._
 
 object LogReporter extends ExtensionId[LogReporterExtension] with ExtensionIdProvider {
   override def lookup(): ExtensionId[_ <: Extension] = LogReporter
@@ -29,10 +31,10 @@ object LogReporter extends ExtensionId[LogReporterExtension] with ExtensionIdPro
 }
 
 class LogReporterExtension(system: ExtendedActorSystem) extends Kamon.Extension {
-  val log = Logging(system, classOf[LogReporterExtension])
+  val log = LoggerFactory.getLogger(getClass.getName)
   log.info("Starting the Kamon(LogReporter) extension")
 
-  val subscriber = system.actorOf(Props[LogReporterSubscriber], "kamon-log-reporter")
+  val subscriber = system.actorOf(Props[LogReporterSubscriber], "kamon-logback-reporter")
 
   Kamon.metrics.subscribe("trace", "**", subscriber, permanently = true)
   Kamon.metrics.subscribe("akka-actor", "**", subscriber, permanently = true)
@@ -108,15 +110,29 @@ class LogReporterSubscriber extends Actor with ActorLogging {
         ||                                                                                                  |
         |+--------------------------------------------------------------------------------------------------+"""
           .stripMargin.format(
-            name,
-            processingTime.numberOfMeasurements, timeInMailbox.numberOfMeasurements, mailboxSize.min,
-            processingTime.min, timeInMailbox.min, mailboxSize.average,
-            processingTime.percentile(50.0D), timeInMailbox.percentile(50.0D), mailboxSize.max,
-            processingTime.percentile(90.0D), timeInMailbox.percentile(90.0D),
-            processingTime.percentile(95.0D), timeInMailbox.percentile(95.0D),
-            processingTime.percentile(99.0D), timeInMailbox.percentile(99.0D), errors.count,
-            processingTime.percentile(99.9D), timeInMailbox.percentile(99.9D),
-            processingTime.max, timeInMailbox.max))
+            value("actor-name", name),
+            value("processing-time.number-of-measurements", processingTime.numberOfMeasurements),
+            value("time-in-mailbox.number-of-measurements", timeInMailbox.numberOfMeasurements),
+            value("mailbox-size.min", mailboxSize.min),
+            value("processing-time.min", processingTime.min),
+            value("time-in-mailbox.min", timeInMailbox.min), 
+            value("mailbox-size.average", mailboxSize.average),
+            value("processing-time.percentile50", processingTime.percentile(50.0D)), 
+            value("time-in-mailbox.percentile50", timeInMailbox.percentile(50.0D)), 
+            value("mailbox-size.max", mailboxSize.max),
+            value("processing-time.percentile90", processingTime.percentile(90.0D)), 
+            value("time-in-mailbox.percentile90", timeInMailbox.percentile(90.0D)),
+            value("processing-time.percentile95", processingTime.percentile(95.0D)),
+            value("time-in-mailbox.percentile95", timeInMailbox.percentile(95.0D)),
+            value("processing-time.percentile99", processingTime.percentile(99.0D)), 
+            value("time-in-mailbox.percentile99", timeInMailbox.percentile(99.0D)), 
+            value("errors.count", errors.count),
+            value("processing-time.percentile99.9", processingTime.percentile(99.9D)), 
+            value("time-in-mailbox.percentile99.9", timeInMailbox.percentile(99.9D)),
+            value("processing-time.max", processingTime.max), 
+            value("time-in-mailbox.max", timeInMailbox.max)
+            )
+        )
     }
 
   }

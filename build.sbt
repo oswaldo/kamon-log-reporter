@@ -17,8 +17,9 @@
 val kamonCore  = "io.kamon" %% "kamon-core" % "0.6.7"
 
 lazy val root = (project in file("."))
-  .settings(name := "kamon-log-reporter")
+  .settings(name := "kamon-logback-reporter")
   .settings(
         libraryDependencies ++=
-          compileScope(kamonCore) ++
-          testScope(scalatest, akkaDependency("testkit").value, slf4jApi, logbackClassic))
+          compileScope(kamonCore, "ch.qos.logback"                %   "logback-classic"         % "1.1.7",
+                       "net.logstash.logback" % "logstash-logback-encoder" % "4.8") ++
+          testScope(scalatest, akkaDependency("testkit").value, slf4jApi))
