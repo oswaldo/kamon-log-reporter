@@ -87,6 +87,8 @@ class LogbackReporterSubscriber extends Actor {
     logMetrics(histograms.result(), counters.result(), minMaxCounters.result(), gauges.result())
   }
 
+  private def field(key: String, any: Any, padding: Int = 12): StructuredArgument = value(key, s"%-${padding}s".format(any.toString))
+
   def logActorMetrics(name: String, actorSnapshot: EntitySnapshot): Unit = {
     for {
       processingTime ← actorSnapshot.histogram("processing-time")
@@ -99,42 +101,40 @@ class LogbackReporterSubscriber extends Actor {
         """
         |+--------------------------------------------------------------------------------------------------+
         ||                                                                                                  |
-        ||    Actor: %-83s    |
+        ||    Actor: {}    |
         ||                                                                                                  |
         ||   Processing Time (nanoseconds)      Time in Mailbox (nanoseconds)         Mailbox Size          |
-        ||    Msg Count: %-12s               Msg Count: %-12s             Min: %-8s       |
-        ||          Min: %-12s                     Min: %-12s            Avg.: %-8s       |
-        ||    50th Perc: %-12s               50th Perc: %-12s             Max: %-8s       |
-        ||    90th Perc: %-12s               90th Perc: %-12s                                 |
-        ||    95th Perc: %-12s               95th Perc: %-12s                                 |
-        ||    99th Perc: %-12s               99th Perc: %-12s           Error Count: %-6s   |
-        ||  99.9th Perc: %-12s             99.9th Perc: %-12s                                 |
-        ||          Max: %-12s                     Max: %-12s                                 |
+        ||    Msg Count: {}               Msg Count: {}             Min: {}       |
+        ||          Min: {}                     Min: {}            Avg.: {}       |
+        ||    50th Perc: {}               50th Perc: {}             Max: {}       |
+        ||    90th Perc: {}               90th Perc: {}                                 |
+        ||    95th Perc: {}               95th Perc: {}                                 |
+        ||    99th Perc: {}               99th Perc: {}           Error Count: {}   |
+        ||  99.9th Perc: {}             99.9th Perc: {}                                 |
+        ||          Max: {}                     Max: {}                                 |
         ||                                                                                                  |
-        |+--------------------------------------------------------------------------------------------------+"""
-          .stripMargin.format(
-            value("actor-name", name),
-            value("processing-time.number-of-measurements", processingTime.numberOfMeasurements),
-            value("time-in-mailbox.number-of-measurements", timeInMailbox.numberOfMeasurements),
-            value("mailbox-size.min", mailboxSize.min),
-            value("processing-time.min", processingTime.min),
-            value("time-in-mailbox.min", timeInMailbox.min), 
-            value("mailbox-size.average", mailboxSize.average),
-            value("processing-time.percentile50", processingTime.percentile(50.0D)), 
-            value("time-in-mailbox.percentile50", timeInMailbox.percentile(50.0D)), 
-            value("mailbox-size.max", mailboxSize.max),
-            value("processing-time.percentile90", processingTime.percentile(90.0D)), 
-            value("time-in-mailbox.percentile90", timeInMailbox.percentile(90.0D)),
-            value("processing-time.percentile95", processingTime.percentile(95.0D)),
-            value("time-in-mailbox.percentile95", timeInMailbox.percentile(95.0D)),
-            value("processing-time.percentile99", processingTime.percentile(99.0D)), 
-            value("time-in-mailbox.percentile99", timeInMailbox.percentile(99.0D)), 
-            value("errors.count", errors.count),
-            value("processing-time.percentile99.9", processingTime.percentile(99.9D)), 
-            value("time-in-mailbox.percentile99.9", timeInMailbox.percentile(99.9D)),
-            value("processing-time.max", processingTime.max), 
-            value("time-in-mailbox.max", timeInMailbox.max)
-            )
+        |+--------------------------------------------------------------------------------------------------+""",
+            field("actor-name", name, 83),
+            field("processing-time.number-of-measurements", processingTime.numberOfMeasurements),
+            field("time-in-mailbox.number-of-measurements", timeInMailbox.numberOfMeasurements),
+            field("mailbox-size.min", mailboxSize.min, 8),
+            field("processing-time.min", processingTime.min),
+            field("time-in-mailbox.min", timeInMailbox.min), 
+            field("mailbox-size.average", mailboxSize.average, 8),
+            field("processing-time.percentile50", processingTime.percentile(50.0D)), 
+            field("time-in-mailbox.percentile50", timeInMailbox.percentile(50.0D)), 
+            field("mailbox-size.max", mailboxSize.max, 8),
+            field("processing-time.percentile90", processingTime.percentile(90.0D)), 
+            field("time-in-mailbox.percentile90", timeInMailbox.percentile(90.0D)),
+            field("processing-time.percentile95", processingTime.percentile(95.0D)),
+            field("time-in-mailbox.percentile95", timeInMailbox.percentile(95.0D)),
+            field("processing-time.percentile99", processingTime.percentile(99.0D)), 
+            field("time-in-mailbox.percentile99", timeInMailbox.percentile(99.0D)), 
+            field("errors.count", errors.count, 6),
+            field("processing-time.percentile99.9", processingTime.percentile(99.9D)), 
+            field("time-in-mailbox.percentile99.9", timeInMailbox.percentile(99.9D)),
+            field("processing-time.max", processingTime.max), 
+            field("time-in-mailbox.max", timeInMailbox.max)
         )
     }
 
