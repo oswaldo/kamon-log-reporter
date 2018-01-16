@@ -24,6 +24,7 @@ import kamon.metric.instrument.{ Counter, Histogram }
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import net.logstash.logback.argument.StructuredArguments._
+import net.logstash.logback.argument.StructuredArgument
 
 object LogbackReporter extends ExtensionId[LogbackReporterExtension] with ExtensionIdProvider {
   override def lookup(): ExtensionId[_ <: Extension] = LogbackReporter
@@ -50,9 +51,11 @@ class LogbackReporterExtension(system: ExtendedActorSystem) extends Kamon.Extens
   Kamon.metrics.subscribe("jdbc-statement", "**", subscriber, permanently = true)
 }
 
-class LogbackReporterSubscriber extends Actor with ActorLogging {
+class LogbackReporterSubscriber extends Actor {
 
   import kamon.logreporter.LogbackReporterSubscriber.RichHistogramSnapshot
+
+  val log = LoggerFactory.getLogger(getClass.getName)
 
   def receive = {
     case tick: TickMetricSnapshot ⇒ printMetricSnapshot(tick)
