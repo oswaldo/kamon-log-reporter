@@ -25,6 +25,8 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import net.logstash.logback.argument.StructuredArguments._
 import net.logstash.logback.argument.StructuredArgument
+import org.slf4j.MarkerFactory
+import org.slf4j.Marker
 
 object LogbackReporter extends ExtensionId[LogbackReporterExtension] with ExtensionIdProvider {
   override def lookup(): ExtensionId[_ <: Extension] = LogbackReporter
@@ -84,10 +86,12 @@ class LogbackReporterSubscriber extends Actor {
       case ignoreEverythingElse                                        ⇒
     }
 
-    logMetrics(histograms.result(), counters.result(), minMaxCounters.result(), gauges.result())
+    logUserMetrics(histograms.result(), counters.result(), minMaxCounters.result(), gauges.result())
   }
 
   private def field(key: String, any: Any, padding: Int = 12): StructuredArgument = value(key, s"%-${padding}s".format(any.toString))
+
+  private def logMetrics(markerName: String, formatWithMargin: String, arguments: StructuredArgument*) = log.info(MarkerFactory.getMarker(markerName), formatWithMargin.stripMargin, arguments:_*)
 
   def logActorMetrics(name: String, actorSnapshot: EntitySnapshot): Unit = {
     for {
@@ -97,7 +101,7 @@ class LogbackReporterSubscriber extends Actor {
       errors ← actorSnapshot.counter("errors")
     } {
 
-      log.info(
+      logMetrics("ACTOR_METRICS",
         """
         |+--------------------------------------------------------------------------------------------------+
         ||                                                                                                  |
@@ -115,25 +119,33 @@ class LogbackReporterSubscriber extends Actor {
         ||                                                                                                  |
         |+--------------------------------------------------------------------------------------------------+""",
             field("actorName", name, 83),
+
             field("processingTimeMeasurements", processingTime.numberOfMeasurements),
             field("timeInMailboxMeasurements", timeInMailbox.numberOfMeasurements),
             field("mailboxSizeMin", mailboxSize.min, 8),
+
             field("processingTimeMin", processingTime.min),
-            field("timeInMailboxMin", timeInMailbox.min), 
+            field("timeInMailboxMin", timeInMailbox.min),
             field("mailboxSizeAverage", mailboxSize.average, 8),
-            field("processingTimePercentile50", processingTime.percentile(50.0D)), 
-            field("timeInMailboxPercentile50", timeInMailbox.percentile(50.0D)), 
+
+            field("processingTimePercentile50", processingTime.percentile(50.0D)),
+            field("timeInMailboxPercentile50", timeInMailbox.percentile(50.0D)),
             field("mailboxSizeMax", mailboxSize.max, 8),
-            field("processingTimePercentile90", processingTime.percentile(90.0D)), 
+
+            field("processingTimePercentile90", processingTime.percentile(90.0D)),
             field("timeInMailboxPercentile90", timeInMailbox.percentile(90.0D)),
+
             field("processingTimePercentile95", processingTime.percentile(95.0D)),
             field("timeInMailboxPercentile95", timeInMailbox.percentile(95.0D)),
-            field("processingTimePercentile99", processingTime.percentile(99.0D)), 
-            field("timeInMailboxPercentile99", timeInMailbox.percentile(99.0D)), 
+
+            field("processingTimePercentile99", processingTime.percentile(99.0D)),
+            field("timeInMailboxPercentile99", timeInMailbox.percentile(99.0D)),
             field("errorsCount", errors.count, 6),
-            field("processingTimePercentile99_9", processingTime.percentile(99.9D)), 
+
+            field("processingTimePercentile99_9", processingTime.percentile(99.9D)),
             field("timeInMailboxPercentile99_9", timeInMailbox.percentile(99.9D)),
-            field("processingTimeMax", processingTime.max), 
+
+            field("processingTimeMax", processingTime.max),
             field("timeInMailboxMax", timeInMailbox.max)
         )
     }
@@ -149,33 +161,54 @@ class LogbackReporterSubscriber extends Actor {
       errors ← metricSnapshot.counter("errors")
     } {
 
-      log.info(
+      logMetrics("ACTOR_GROUP_METRICS",
         """
         |+--------------------------------------------------------------------------------------------------+
         ||                                                                                                  |
-        ||    Actor Group: %-77s    |
+        ||    Actor Group: {}    |
         ||                                                                                                  |
         ||   Processing Time (nanoseconds)      Time in Mailbox (nanoseconds)         Mailbox Size          |
-        ||    Msg Count: %-12s               Msg Count: %-12s             Min: %-8s       |
-        ||          Min: %-12s                     Min: %-12s            Avg.: %-8s       |
-        ||    50th Perc: %-12s               50th Perc: %-12s             Max: %-8s       |
-        ||    90th Perc: %-12s               90th Perc: %-12s                                 |
-        ||    95th Perc: %-12s               95th Perc: %-12s             Actor Max: %-6s   |
-        ||    99th Perc: %-12s               99th Perc: %-12s           Error Count: %-6s   |
-        ||  99.9th Perc: %-12s             99.9th Perc: %-12s                                 |
-        ||          Max: %-12s                     Max: %-12s                                 |
+        ||    Msg Count: {}               Msg Count: {}             Min: {}       |
+        ||          Min: {}                     Min: {}            Avg.: {}       |
+        ||    50th Perc: {}               50th Perc: {}             Max: {}       |
+        ||    90th Perc: {}               90th Perc: {}                                 |
+        ||    95th Perc: {}               95th Perc: {}             Actor Max: {}   |
+        ||    99th Perc: {}               99th Perc: {}           Error Count: {}   |
+        ||  99.9th Perc: {}             99.9th Perc: {}                                 |
+        ||          Max: {}                     Max: {}                                 |
         ||                                                                                                  |
-        |+--------------------------------------------------------------------------------------------------+"""
-          .stripMargin.format(
-            name,
-            processingTime.numberOfMeasurements, timeInMailbox.numberOfMeasurements, mailboxSize.min,
-            processingTime.min, timeInMailbox.min, mailboxSize.average,
-            processingTime.percentile(50.0D), timeInMailbox.percentile(50.0D), mailboxSize.max,
-            processingTime.percentile(90.0D), timeInMailbox.percentile(90.0D),
-            processingTime.percentile(95.0D), timeInMailbox.percentile(95.0D), actors.max,
-            processingTime.percentile(99.0D), timeInMailbox.percentile(99.0D), errors.count,
-            processingTime.percentile(99.9D), timeInMailbox.percentile(99.9D),
-            processingTime.max, timeInMailbox.max))
+        |+--------------------------------------------------------------------------------------------------+""",
+            field("actorGroupName", name, 77),
+
+            field("processingTimeMeasurements", processingTime.numberOfMeasurements),
+            field("timeInMailboxMeasurements", timeInMailbox.numberOfMeasurements),
+            field("mailboxSizeMin", mailboxSize.min, 8),
+
+            field("processingTimeMin", processingTime.min),
+            field("timeInMailboxMin", timeInMailbox.min),
+            field("mailboxSizeAverage", mailboxSize.average, 8),
+
+            field("processingTimePercentile50", processingTime.percentile(50.0D)),
+            field("timeInMailboxPercentile50", timeInMailbox.percentile(50.0D)),
+            field("mailboxSizeMax", mailboxSize.max, 8),
+
+            field("processingTimePercentile90", processingTime.percentile(90.0D)),
+            field("timeInMailboxPercentile90", timeInMailbox.percentile(90.0D)),
+
+            field("processingTimePercentile95", processingTime.percentile(95.0D)),
+            field("timeInMailboxPercentile95", timeInMailbox.percentile(95.0D)),
+            field("actorsMax", actors.max, 6),
+
+            field("processingTimePercentile99", processingTime.percentile(99.0D)),
+            field("timeInMailboxPercentile99", timeInMailbox.percentile(99.0D)),
+            field("errorsCount", errors.count, 6),
+
+            field("processingTimePercentile99_9", processingTime.percentile(99.9D)),
+            field("timeInMailboxPercentile99_9", timeInMailbox.percentile(99.9D)),
+
+            field("processingTimeMax", processingTime.max),
+            field("timeInMailboxMax", timeInMailbox.max)
+       )
     }
 
   }
@@ -188,36 +221,61 @@ class LogbackReporterSubscriber extends Actor {
       errors ← actorSnapshot.counter("errors")
     } {
 
-      log.info(
+      logMetrics("ROUTER_METRICS",
         """
         |+--------------------------------------------------------------------------------------------------+
         ||                                                                                                  |
-        ||    Router: %-83s   |
+        ||    Router: {}   |
         ||                                                                                                  |
         ||   Processing Time (nanoseconds)    Time in Mailbox (nanoseconds)    Routing Time (nanoseconds)   |
-        ||    Msg Count: %-12s             Msg Count: %-12s       Msg Count: %-12s     |
-        ||          Min: %-12s                   Min: %-12s             Min: %-12s     |
-        ||    50th Perc: %-12s             50th Perc: %-12s       50th Perc: %-12s     |
-        ||    90th Perc: %-12s             90th Perc: %-12s       90th Perc: %-12s     |
-        ||    95th Perc: %-12s             95th Perc: %-12s       95th Perc: %-12s     |
-        ||    99th Perc: %-12s             99th Perc: %-12s       99th Perc: %-12s     |
-        ||  99.9th Perc: %-12s           99.9th Perc: %-12s     99.9th Perc: %-12s     |
-        ||          Max: %-12s                   Max: %-12s             Max: %-12s     |
+        ||    Msg Count: {}             Msg Count: {}       Msg Count: {}     |
+        ||          Min: {}                   Min: {}             Min: {}     |
+        ||    50th Perc: {}             50th Perc: {}       50th Perc: {}     |
+        ||    90th Perc: {}             90th Perc: {}       90th Perc: {}     |
+        ||    95th Perc: {}             95th Perc: {}       95th Perc: {}     |
+        ||    99th Perc: {}             99th Perc: {}       99th Perc: {}     |
+        ||  99.9th Perc: {}           99.9th Perc: {}     99.9th Perc: {}     |
+        ||          Max: {}                   Max: {}             Max: {}     |
         ||                                                                                                  |
-        ||  Error Count: %-6s                                                                             |
+        ||  Error Count: {}                                                                             |
         ||                                                                                                  |
-        |+--------------------------------------------------------------------------------------------------+"""
-          .stripMargin.format(
-            name,
-            processingTime.numberOfMeasurements, timeInMailbox.numberOfMeasurements, routingTime.numberOfMeasurements,
-            processingTime.min, timeInMailbox.min, routingTime.min,
-            processingTime.percentile(50.0D), timeInMailbox.percentile(50.0D), routingTime.percentile(50.0D),
-            processingTime.percentile(90.0D), timeInMailbox.percentile(90.0D), routingTime.percentile(90.0D),
-            processingTime.percentile(95.0D), timeInMailbox.percentile(95.0D), routingTime.percentile(95.0D),
-            processingTime.percentile(99.0D), timeInMailbox.percentile(99.0D), routingTime.percentile(99.0D),
-            processingTime.percentile(99.9D), timeInMailbox.percentile(99.9D), routingTime.percentile(99.9D),
-            processingTime.max, timeInMailbox.max, routingTime.max,
-            errors.count))
+        |+--------------------------------------------------------------------------------------------------+""",
+            field("routerName", name, 83),
+
+            field("processingTimeMeasurements", processingTime.numberOfMeasurements),
+            field("timeInMailboxMeasurements", timeInMailbox.numberOfMeasurements),
+            field("routingTimeMeasurements", routingTime.numberOfMeasurements),
+
+            field("processingTimeMin", processingTime.min),
+            field("timeInMailboxMin", timeInMailbox.min),
+            field("routingTimeMin", routingTime.min),
+
+            field("processingTimePercentile50", processingTime.percentile(50.0D)),
+            field("timeInMailboxPercentile50", timeInMailbox.percentile(50.0D)),
+            field("routingTimePercentile50", routingTime.percentile(50.0D)),
+
+            field("processingTimePercentile90", processingTime.percentile(90.0D)),
+            field("timeInMailboxPercentile90", timeInMailbox.percentile(90.0D)),
+            field("routingTimePercentile90", routingTime.percentile(90.0D)),
+
+            field("processingTimePercentile95", processingTime.percentile(95.0D)),
+            field("timeInMailboxPercentile95", timeInMailbox.percentile(95.0D)),
+            field("routingTimePercentile95", routingTime.percentile(95.0D)),
+
+            field("processingTimePercentile99", processingTime.percentile(99.0D)),
+            field("timeInMailboxPercentile99", timeInMailbox.percentile(99.0D)),
+            field("routingTimePercentile99", routingTime.percentile(99.0D)),
+
+            field("processingTimePercentile99_9", processingTime.percentile(99.9D)),
+            field("timeInMailboxPercentile99_9", timeInMailbox.percentile(99.9D)),
+            field("routingTimePercentile99_9", routingTime.percentile(99.9D)),
+
+            field("processingTimeMax", processingTime.max),
+            field("timeInMailboxMax", timeInMailbox.max),
+            field("routingTimeMax", routingTime.max),
+
+            field("errorsCount", errors.count, 6)
+       )
     }
 
   }
@@ -244,25 +302,43 @@ class LogbackReporterSubscriber extends Actor {
       queuedSubmissionCount ← forkJoinMetrics.gauge("queued-submission-count")
 
     } {
-      log.info(
+      logMetrics("FORK_JOIN_POOL_METRICS",
         """
           |+-------------------------------------------------------------------------------------------------------------------------+
           ||  Fork-Join-Pool                                                                                                         |
           ||                                                                                                                         |
-          ||  Dispatcher: %-106s |
+          ||  Dispatcher: {} |
           ||                                                                                                                         |
-          ||  Paralellism: %-4s                                                                                                      |
+          ||  Paralellism: {}                                                                                                      |
           ||                                                                                                                         |
           ||                 Pool Size       Active Threads     Running Threads     Queue Task Count     Queued Submission Count     |
-          ||      Min           %-4s              %-4s                %-4s                %-4s                     %-8s          |
-          ||      Avg           %-4s              %-4s                %-4s                %-4s                     %-8s          |
-          ||      Max           %-4s              %-4s                %-4s                %-4s                     %-8s          |
+          ||      Min           {}              {}                {}                {}                     {}          |
+          ||      Avg           {}              {}                {}                {}                     {}          |
+          ||      Max           {}              {}                {}                {}                     {}          |
           ||                                                                                                                         |
-          |+-------------------------------------------------------------------------------------------------------------------------+"""
-          .stripMargin.format(name,
-            paralellism.max, poolSize.min, activeThreads.min, runningThreads.min, queuedTaskCount.min, queuedSubmissionCount.min,
-            poolSize.average, activeThreads.average, runningThreads.average, queuedTaskCount.average, queuedSubmissionCount.average,
-            poolSize.max, activeThreads.max, runningThreads.max, queuedTaskCount.max, queuedSubmissionCount.max))
+          |+-------------------------------------------------------------------------------------------------------------------------+""",
+            field("dispatcherName", name, 106),
+
+            field("paralellism", paralellism.max, 4),
+
+            field("poolSizeMin", poolSize.min, 4),
+            field("activeThreadsMin", activeThreads.min, 4),
+            field("runningThreadsMin", runningThreads.min, 4),
+            field("queuedTaskCountMin", queuedTaskCount.min, 4),
+            field("queuedSubmissionCountMin", queuedSubmissionCount.min, 8),
+
+            field("poolSizeAverage", poolSize.average, 4),
+            field("activeThreadsAverage", activeThreads.average, 4),
+            field("runningThreadsAverage", runningThreads.average, 4),
+            field("queuedTaskCountAverage", queuedTaskCount.average, 4),
+            field("queuedSubmissionCountAverage", queuedSubmissionCount.average, 8),
+
+            field("poolSizeMax", poolSize.max, 4),
+            field("activeThreadsMax", activeThreads.max, 4),
+            field("runningThreadsMax", runningThreads.max, 4),
+            field("queuedTaskCountMax", queuedTaskCount.max, 4),
+            field("queuedSubmissionCountMax", queuedSubmissionCount.max, 8)
+       )
     }
   }
 
@@ -275,29 +351,40 @@ class LogbackReporterSubscriber extends Actor {
       processedTasks ← threadPoolMetrics.gauge("processed-tasks")
     } {
 
-      log.info(
+      logMetrics("THREAD_POOL_EXECUTOR_METRICS",
         """
           |+--------------------------------------------------------------------------------------------------+
           ||  Thread-Pool-Executor                                                                            |
           ||                                                                                                  |
-          ||  Dispatcher: %-83s |
+          ||  Dispatcher: {} |
           ||                                                                                                  |
-          ||  Core Pool Size: %-4s                                                                            |
-          ||  Max  Pool Size: %-4s                                                                            |
+          ||  Core Pool Size: {}                                                                            |
+          ||  Max  Pool Size: {}                                                                            |
           ||                                                                                                  |
           ||                                                                                                  |
           ||                         Pool Size        Active Threads          Processed Task                  |
-          ||           Min              %-4s                %-4s                   %-4s                       |
-          ||           Avg              %-4s                %-4s                   %-4s                       |
-          ||           Max              %-4s                %-4s                   %-4s                       |
+          ||           Min              {}                {}                   {}                       |
+          ||           Avg              {}                {}                   {}                       |
+          ||           Max              {}                {}                   {}                       |
           ||                                                                                                  |
-          |+--------------------------------------------------------------------------------------------------+"""
-          .stripMargin.format(name,
-            corePoolSize.max,
-            maxPoolSize.max,
-            poolSize.min, activeThreads.min, processedTasks.min,
-            poolSize.average, activeThreads.average, processedTasks.average,
-            poolSize.max, activeThreads.max, processedTasks.max))
+          |+--------------------------------------------------------------------------------------------------+""",
+            field("dispatcherName", name, 83),
+
+            field("corePoolSize", corePoolSize.max, 4),
+            field("maxPoolSize", maxPoolSize.max, 4),
+
+            field("poolSizeMin", poolSize.min, 4),
+            field("activeThreadsMin", activeThreads.min, 4),
+            field("processedTasksMin", processedTasks.min, 4),
+
+            field("poolSizeAverage", poolSize.average, 4),
+            field("activeThreadsAverage", activeThreads.average, 4),
+            field("processedTasksAverage", processedTasks.average, 4),
+
+            field("poolSizeMax", poolSize.max, 4),
+            field("activeThreadsMax", activeThreads.max, 4),
+            field("processedTasksMax", processedTasks.max, 4)
+       )
     }
 
   }
@@ -318,23 +405,34 @@ class LogbackReporterSubscriber extends Actor {
       idle ← cpuMetrics.histogram("cpu-idle")
     } {
 
-      log.info(
+      logMetrics("THREAD_POOL_EXECUTOR_METRICS",
         """
         |+--------------------------------------------------------------------------------------------------+
         ||                                                                                                  |
         ||    CPU (ALL)                                                                                     |
         ||                                                                                                  |
         ||    User (percentage)       System (percentage)    Wait (percentage)   Idle (percentage)          |
-        ||       Min: %-3s                   Min: %-3s               Min: %-3s           Min: %-3s              |
-        ||       Avg: %-3s                   Avg: %-3s               Avg: %-3s           Avg: %-3s              |
-        ||       Max: %-3s                   Max: %-3s               Max: %-3s           Max: %-3s              |
+        ||       Min: {}                   Min: {}               Min: {}           Min: {}              |
+        ||       Avg: {}                   Avg: {}               Avg: {}           Avg: {}              |
+        ||       Max: {}                   Max: {}               Max: {}           Max: {}              |
         ||                                                                                                  |
         ||                                                                                                  |
-        |+--------------------------------------------------------------------------------------------------+"""
-          .stripMargin.format(
-            user.min, system.min, cpuWait.min, idle.min,
-            user.average, system.average, cpuWait.average, idle.average,
-            user.max, system.max, cpuWait.max, idle.max))
+        |+--------------------------------------------------------------------------------------------------+""",
+            field("userMin", user.min, 3),
+            field("systemMin", system.min, 3),
+            field("cpuWaitMin", cpuWait.min, 3),
+            field("idleMin", idle.min, 3),
+
+            field("userAverage", user.average, 3),
+            field("systemAverage", system.average, 3),
+            field("cpuWaitAverage", cpuWait.average, 3),
+            field("idleAverage", idle.average, 3),
+
+            field("userMax", user.max, 3),
+            field("systemMax", system.max, 3),
+            field("cpuWaitMax", cpuWait.max, 3),
+            field("idleMax", idle.max, 3)
+       )
     }
 
   }
@@ -347,23 +445,29 @@ class LogbackReporterSubscriber extends Actor {
       txErrors ← networkMetrics.histogram("tx-errors")
     } {
 
-      log.info(
+      logMetrics("NETWORK_METRICS",
         """
         |+--------------------------------------------------------------------------------------------------+
         ||                                                                                                  |
         ||    Network (ALL)                                                                                 |
         ||                                                                                                  |
         ||     Rx-Bytes (KB)                Tx-Bytes (KB)              Rx-Errors            Tx-Errors       |
-        ||      Min: %-4s                  Min: %-4s                 Total: %-8s      Total: %-8s  |
-        ||      Avg: %-4s                Avg: %-4s                                                     |
-        ||      Max: %-4s                  Max: %-4s                                                       |
+        ||      Min: {}                  Min: {}                 Total: {}      Total: {}  |
+        ||      Avg: {}                Avg: {}                                                     |
+        ||      Max: {}                  Max: {}                                                       |
         ||                                                                                                  |
-        |+--------------------------------------------------------------------------------------------------+"""
-          .stripMargin.
-          format(
-            rxBytes.min, txBytes.min, rxErrors.sum, txErrors.sum,
-            rxBytes.average, txBytes.average,
-            rxBytes.max, txBytes.max))
+        |+--------------------------------------------------------------------------------------------------+""",
+            field("rxBytesMin", rxBytes.min, 4),
+            field("txBytesMin", txBytes.min, 4),
+            field("rxErrorsCount", rxErrors.sum, 8),
+            field("txErrorsCount", txErrors.sum, 8),
+
+            field("rxBytesAverage", rxBytes.average, 4),
+            field("txBytesAverage", txBytes.average, 4),
+
+            field("rxBytesMax", rxBytes.max, 4),
+            field("txBytesMax", txBytes.max, 4)
+       )
     }
   }
 
@@ -373,22 +477,27 @@ class LogbackReporterSubscriber extends Actor {
       total ← processCpuMetrics.histogram("process-cpu")
     } {
 
-      log.info(
+      logMetrics("PROCESS_CPU_METRICS",
         """
         |+--------------------------------------------------------------------------------------------------+
         ||                                                                                                  |
         ||    Process-CPU                                                                                   |
         ||                                                                                                  |
         ||             User-Percentage                           Total-Percentage                           |
-        ||                Min: %-12s                         Min: %-12s                       |
-        ||                Avg: %-12s                         Avg: %-12s                       |
-        ||                Max: %-12s                         Max: %-12s                       |
+        ||                Min: {}                         Min: {}                       |
+        ||                Avg: {}                         Avg: {}                       |
+        ||                Max: {}                         Max: {}                       |
         ||                                                                                                  |
-        |+--------------------------------------------------------------------------------------------------+"""
-          .stripMargin.format(
-            user.min, total.min,
-            user.average, total.average,
-            user.max, total.max))
+        |+--------------------------------------------------------------------------------------------------+""",
+            field("userMin", user.min),
+            field("totalMin", total.min),
+
+            field("userAverage", user.average),
+            field("totalAverage", total.average),
+
+            field("userMax", user.max),
+            field("totalMax", total.max)
+       )
     }
 
   }
@@ -400,23 +509,30 @@ class LogbackReporterSubscriber extends Actor {
       global ← contextSwitchMetrics.histogram("context-switches-global")
     } {
 
-      log.info(
+      logMetrics("CONTEXT_SWITCHES_METRICS",
         """
         |+--------------------------------------------------------------------------------------------------+
         ||                                                                                                  |
         ||    Context-Switches                                                                              |
         ||                                                                                                  |
         ||        Global                Per-Process-Non-Voluntary            Per-Process-Voluntary          |
-        ||    Min: %-12s                   Min: %-12s                  Min: %-12s      |
-        ||    Avg: %-12s                   Avg: %-12s                  Avg: %-12s      |
-        ||    Max: %-12s                   Max: %-12s                  Max: %-12s      |
+        ||    Min: {}                   Min: {}                  Min: {}      |
+        ||    Avg: {}                   Avg: {}                  Avg: {}      |
+        ||    Max: {}                   Max: {}                  Max: {}      |
         ||                                                                                                  |
-        |+--------------------------------------------------------------------------------------------------+"""
-          .stripMargin.
-          format(
-            global.min, perProcessNonVoluntary.min, perProcessVoluntary.min,
-            global.average, perProcessNonVoluntary.average, perProcessVoluntary.average,
-            global.max, perProcessNonVoluntary.max, perProcessVoluntary.max))
+        |+--------------------------------------------------------------------------------------------------+""",
+            field("globalMin", global.min),
+            field("perProcessNonVoluntaryMin", perProcessNonVoluntary.min),
+            field("perProcessVoluntaryMin", perProcessVoluntary.min),
+
+            field("globalAverage", global.average),
+            field("perProcessNonVoluntaryAverage", perProcessNonVoluntary.average),
+            field("perProcessVoluntaryAverage", perProcessVoluntary.average),
+
+            field("globalMax", global.max),
+            field("perProcessNonVoluntaryMax", perProcessNonVoluntary.max),
+            field("perProcessVoluntaryMax", perProcessVoluntary.max)
+       )
     }
 
   }
@@ -452,7 +568,7 @@ class LogbackReporterSubscriber extends Actor {
     }
   }
 
-  def logMetrics(histograms: Map[String, Option[Histogram.Snapshot]],
+  def logUserMetrics(histograms: Map[String, Option[Histogram.Snapshot]],
     counters: Map[String, Option[Counter.Snapshot]], minMaxCounters: Map[String, Option[Histogram.Snapshot]],
     gauges: Map[String, Option[Histogram.Snapshot]]): Unit = {
 
